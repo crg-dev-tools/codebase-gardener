@@ -1,3 +1,4 @@
+import { logger } from "../logger";
 import { run } from "../util/exec";
 
 export interface CreatePrOptions {
@@ -19,6 +20,23 @@ export interface GithubClient {
   createPullRequest(opts: CreatePrOptions): Promise<string>;
 }
 
+/** Build the `gh pr create` argv (without labels — labels are applied
+ *  separately so a missing label never blocks PR creation). Pure/testable. */
+export function buildPrCreateArgs(opts: CreatePrOptions): string[] {
+  const args = [
+    "pr",
+    "create",
+    "--title",
+    opts.title,
+    "--body",
+    opts.body,
+    "--head",
+    opts.branch,
+  ];
+  if (opts.draft) args.push("--draft");
+  return args;
+}
+
 export class GhCliClient implements GithubClient {
   constructor(private readonly cwd: string) {}
 
@@ -32,25 +50,42 @@ export class GhCliClient implements GithubClient {
     return res.code === 0;
   }
 
-  /** Create a PR and return its URL. Assumes the branch is already pushed. */
+  /** Create a PR and return its URL. Assumes the branch is already pushed.
+   *  Labels are applied best-effort AFTER creation so a missing/undeletable
+   *  label cannot block the PR itself. */
   async createPullRequest(opts: CreatePrOptions): Promise<string> {
-    const args = [
-      "pr",
-      "create",
-      "--title",
-      opts.title,
-      "--body",
-      opts.body,
-      "--head",
-      opts.branch,
-    ];
-    if (opts.draft) args.push("--draft");
-    for (const label of opts.labels) args.push("--label", label);
-
-    const res = await run("gh", args, this.cwd);
+    const res = await run("gh", buildPrCreateArgs(opts), this.cwd);
     if (res.code !== 0) {
       throw new Error(`gh pr create failed: ${res.stderr.trim()}`);
     }
-    return res.stdout.trim();
+    const url = res.stdout.trim();
+
+    if (opts.labels.length > 0) {
+      await this.applyLabels(url, opts.labels);
+    }
+    return url;
+  }
+
+  /** Ensure labels exist (create if missing) and add them to the PR. All
+   *  steps are best-effort: a failure is warned about, not thrown. */
+  private async applyLabels(prUrl: string, labels: string[]): Promise<void> {
+    for (const label of labels) {
+      // `--force` creates the label or leaves an existing one intact.
+      await run(
+        "gh",
+        ["label", "create", label, "--color", "ededed", "--force"],
+        this.cwd,
+      );
+    }
+    const res = await run(
+      "gh",
+      ["pr", "edit", prUrl, "--add-label", labels.join(",")],
+      this.cwd,
+    );
+    if (res.code !== 0) {
+      logger.warn(
+        `PR created, but labels could not be applied: ${res.stderr.trim()}`,
+      );
+    }
   }
 }

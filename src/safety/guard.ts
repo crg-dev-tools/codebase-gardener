@@ -70,6 +70,36 @@ export function selectWithinFileBudget(
   return selected;
 }
 
+/** Count Markdown code-fence markers (```) in a string. */
+export function countCodeFences(text: string): number {
+  const matches = text.match(/```/g);
+  return matches ? matches.length : 0;
+}
+
+/**
+ * Content-level integrity checks that catch collateral damage the line/file
+ * limits miss. Currently: a Markdown edit must not change the number of code
+ * fences (whole-file rewrites have been observed stripping ``` fences while
+ * making an unrelated one-line fix).
+ */
+export function checkContentIntegrity(
+  items: Array<{ file: string; original: string; newContent: string }>,
+): SafetyViolation[] {
+  const violations: SafetyViolation[] = [];
+  for (const it of items) {
+    if (/\.(md|markdown)$/i.test(it.file)) {
+      const before = countCodeFences(it.original);
+      const after = countCodeFences(it.newContent);
+      if (before !== after) {
+        violations.push({
+          message: `${it.file}: code-fence count changed (${before} -> ${after}); likely unintended reformatting`,
+        });
+      }
+    }
+  }
+  return violations;
+}
+
 /**
  * Verify a produced set of edits + working-tree diff against the config
  * limits. Returns a list of violations (empty means OK).

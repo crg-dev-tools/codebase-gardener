@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { defaultConfig } from "../src/config/schema";
 import {
+  checkContentIntegrity,
   checkEditLimits,
+  countCodeFences,
   filterSafeCandidates,
   selectWithinFileBudget,
 } from "../src/safety/guard";
@@ -78,5 +80,39 @@ describe("safety guard", () => {
     const config = defaultConfig();
     const edits: FileEdit[] = [{ file: "a.ts", newContent: "", summary: "x" }];
     expect(checkEditLimits(edits, 5, config)).toEqual([]);
+  });
+});
+
+describe("content integrity", () => {
+  it("counts code fences", () => {
+    expect(countCodeFences("no fences")).toBe(0);
+    expect(countCodeFences("```bash\nx\n```\n```\ny\n```")).toBe(4);
+  });
+
+  it("flags a markdown edit that strips code fences", () => {
+    const original = "# Doc\n\n```bash\nnpm install\n```\n";
+    const newContent = "# Doc\n\nbash\nnpm install\n\n"; // fences removed
+    const v = checkContentIntegrity([
+      { file: "README.md", original, newContent },
+    ]);
+    expect(v).toHaveLength(1);
+    expect(v[0].message).toMatch(/fence count changed/);
+  });
+
+  it("allows a markdown edit that preserves fences", () => {
+    const original = "# Doc\n\n```bash\nnpm install\n```\n";
+    const newContent = "# Docs\n\n```bash\nnpm ci\n```\n"; // fences intact
+    expect(
+      checkContentIntegrity([
+        { file: "README.md", original, newContent },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("ignores non-markdown files", () => {
+    const v = checkContentIntegrity([
+      { file: "src/a.ts", original: "```", newContent: "no fence" },
+    ]);
+    expect(v).toEqual([]);
   });
 });

@@ -1,10 +1,10 @@
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ClaudeAdapter } from "../claude/adapter";
 import type { Config } from "../config/schema";
 import type { GitClient } from "../git/client";
 import { logger } from "../logger";
-import { checkEditLimits } from "../safety/guard";
+import { checkContentIntegrity, checkEditLimits } from "../safety/guard";
 import type { ChangePlan, FileEdit, RepoContext } from "../types";
 import { run } from "../util/exec";
 
@@ -49,6 +49,17 @@ export async function apply(
 
   const editedPaths = edits.map((e) => e.file);
 
+  // Capture the original contents (pre-write) for content-integrity checks.
+  const integrityItems = edits.map((e) => {
+    let original = "";
+    try {
+      original = readFileSync(join(context.root, e.file), "utf8");
+    } catch {
+      /* new file or unreadable — treated as empty original */
+    }
+    return { file: e.file, original, newContent: e.newContent };
+  });
+
   await git.createBranch(plan.branch);
   try {
     for (const edit of edits) {
@@ -57,7 +68,10 @@ export async function apply(
     await git.add(editedPaths);
 
     const changedLines = await git.changedLineCount();
-    const violations = checkEditLimits(edits, changedLines, config);
+    const violations = [
+      ...checkEditLimits(edits, changedLines, config),
+      ...checkContentIntegrity(integrityItems),
+    ];
     if (violations.length > 0) {
       for (const v of violations) logger.warn(v.message);
       await rollback(git, editedPaths, plan.branch, opts.baseBranch);
