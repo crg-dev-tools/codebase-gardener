@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-
 /** Minimal leveled logger. Writes human-facing output to stderr so that
  *  `--json` payloads on stdout stay machine-parseable. */
 
