@@ -1,0 +1,36 @@
+# codebase-gardener configuration (all fields optional; safe defaults apply when omitted)
+enabled: true
+
+# safe | (future: aggressive) — only "safe" is honored in the MVP
+mode: safe
+
+limits:
+  max_files_per_pr: 5
+  max_changed_lines_per_pr: 200
+  max_prs_per_run: 1
+
+# Which low-risk rules the scanner is allowed to consider.
+rules:
+  - lint_fix
+  - unused_import
+  - deprecated_api
+  - type_narrowing
+  - small_test_addition
+  - typo
+  - stale_docs
+
+exclude:
+  - "node_modules/**"
+  - "dist/**"
+  - "build/**"
+  - "coverage/**"
+  - "vendor/**"
+  - "migrations/**"
+  - "**/*.min.js"
+
+pr:
+  draft: true
+  branch_prefix: "gardener/"
+  labels:
+    - "maintenance"
+    - "ai-generated"
