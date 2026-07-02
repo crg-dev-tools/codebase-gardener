@@ -74,7 +74,7 @@ export async function apply(
     ];
     if (violations.length > 0) {
       for (const v of violations) logger.warn(v.message);
-      await rollback(git, editedPaths, plan.branch, opts.baseBranch);
+      await rollback(git, plan.branch, opts.baseBranch);
       return {
         edits,
         committed: false,
@@ -89,7 +89,7 @@ export async function apply(
     await git.commit(plan.commitMessage);
     return { edits, committed: true, branch: plan.branch, changedLines };
   } catch (err) {
-    await rollback(git, editedPaths, plan.branch, opts.baseBranch);
+    await rollback(git, plan.branch, opts.baseBranch);
     throw err;
   }
 }
@@ -115,12 +115,14 @@ async function runVerification(context: RepoContext): Promise<void> {
 
 async function rollback(
   git: GitClient,
-  paths: string[],
   branch: string,
   baseBranch: string | null,
 ): Promise<void> {
   try {
-    await git.restore(paths);
+    // Discard staged + working-tree edits first (reset --hard), THEN switch
+    // back to the base branch and delete the throwaway branch. Restoring from
+    // the index would re-apply the very edits we are trying to discard.
+    await git.discardAllChanges();
     if (baseBranch) {
       await git.checkout(baseBranch);
       await git.deleteBranch(branch);

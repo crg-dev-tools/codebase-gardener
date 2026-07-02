@@ -18,8 +18,8 @@ export interface GitClient {
   push(branch: string): Promise<void>;
   /** Number of changed lines (added + deleted) in the working tree. */
   changedLineCount(): Promise<number>;
-  /** Discard working-tree changes to the given paths. */
-  restore(paths: string[]): Promise<void>;
+  /** Discard ALL staged and working-tree changes, resetting to HEAD. */
+  discardAllChanges(): Promise<void>;
   /** Delete a local branch (force). */
   deleteBranch(name: string): Promise<void>;
 }
@@ -114,10 +114,11 @@ export class ShellGitClient implements GitClient {
     return total;
   }
 
-  async restore(paths: string[]): Promise<void> {
-    if (paths.length === 0) return;
-    // `checkout --` discards working-tree changes for the given paths.
-    await this.git(["checkout", "--", ...paths]);
+  async discardAllChanges(): Promise<void> {
+    // `reset --hard` clears both the index and the working tree back to HEAD,
+    // so already-`git add`-ed edits are discarded too. `run` requires a clean
+    // tree up front, so this only ever throws away edits this tool just made.
+    await this.git(["reset", "--hard", "HEAD"]);
   }
 
   async deleteBranch(name: string): Promise<void> {
