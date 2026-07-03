@@ -7,6 +7,8 @@ export interface CreatePrOptions {
   branch: string;
   draft: boolean;
   labels: string[];
+  /** Base branch for the PR. Omit to let the backend use the repo default. */
+  base?: string;
 }
 
 /**
@@ -33,6 +35,7 @@ export function buildPrCreateArgs(opts: CreatePrOptions): string[] {
     "--head",
     opts.branch,
   ];
+  if (opts.base) args.push("--base", opts.base);
   if (opts.draft) args.push("--draft");
   return args;
 }

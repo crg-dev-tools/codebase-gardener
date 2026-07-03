@@ -3,6 +3,7 @@ import { claudeCliAvailable } from "../claude/adapter";
 import { hasApiKey } from "../claude/client";
 import { ShellGitClient } from "../git/client";
 import { GhCliClient } from "../github/client";
+import { appConfigured } from "../github/factory";
 import { logger } from "../logger";
 import { commandExists } from "../util/exec";
 
@@ -45,14 +46,24 @@ export async function runDoctor(opts: DoctorOptions): Promise<number> {
   }
   checks.push({ name: "git", ok: gitOk, detail: gitDetail });
 
-  // gh CLI + auth
-  const ghOk = await gh.isAvailable();
-  let ghDetail = "not found on PATH (PR creation disabled)";
-  if (ghOk) {
-    const authed = await gh.isAuthenticated();
-    ghDetail = authed ? "installed and authenticated" : "installed, NOT authenticated";
+  // GitHub backend: App (installation token) if configured, else gh CLI.
+  if (appConfigured()) {
+    checks.push({
+      name: "github",
+      ok: true,
+      detail: "GitHub App backend configured (installation token)",
+    });
+  } else {
+    const ghOk = await gh.isAvailable();
+    let ghDetail = "gh not found on PATH (PR creation disabled)";
+    if (ghOk) {
+      const authed = await gh.isAuthenticated();
+      ghDetail = authed
+        ? "gh installed and authenticated"
+        : "gh installed, NOT authenticated";
+    }
+    checks.push({ name: "github", ok: ghOk, detail: ghDetail });
   }
-  checks.push({ name: "gh", ok: ghOk, detail: ghDetail });
 
   // Claude backend: prefer the Claude Code CLI (reuses claude.ai login),
   // fall back to an API key.

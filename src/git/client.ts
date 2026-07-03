@@ -25,6 +25,8 @@ export interface GitClient {
   deleteBranch(name: string): Promise<void>;
   /** True if a branch with this name exists locally or on `origin`. */
   branchExists(name: string): Promise<boolean>;
+  /** The `origin` remote URL, or null if there is none. */
+  remoteUrl(): Promise<string | null>;
 }
 
 export class ShellGitClient implements GitClient {
@@ -135,5 +137,12 @@ export class ShellGitClient implements GitClient {
     if (local.code === 0) return true;
     const remote = await this.git(["ls-remote", "--heads", "origin", name]);
     return remote.code === 0 && remote.stdout.trim() !== "";
+  }
+
+  async remoteUrl(): Promise<string | null> {
+    const res = await this.git(["remote", "get-url", "origin"]);
+    if (res.code !== 0) return null;
+    const url = res.stdout.trim();
+    return url === "" ? null : url;
   }
 }

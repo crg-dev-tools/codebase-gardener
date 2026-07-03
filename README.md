@@ -17,6 +17,15 @@ Two backends are supported, chosen automatically:
 
 Force one with `GARDENER_BACKEND=cli` or `GARDENER_BACKEND=api`. Run `doctor` to see which is active.
 
+## GitHub backend
+
+PR creation goes through a `GithubClient` interface with two implementations, selected automatically:
+
+1. **`gh` CLI (default)** — uses your ambient `gh` login.
+2. **GitHub App (Phase 3 groundwork)** — when `GARDENER_GH_APP_ID`, `GARDENER_GH_APP_PRIVATE_KEY`, and `GARDENER_GH_INSTALLATION_ID` are set, the tool mints a short-lived installation access token (App JWT → installation token) and creates PRs via the GitHub REST API — no `gh` needed. This is the seam a future worker/GitHub-App deployment uses. (Branch **push** still uses local git auth in the MVP; token-injected push is the next step.)
+
+Force with `GARDENER_GITHUB_BACKEND=cli|app`.
+
 ## Requirements
 
 - Node.js ≥ 18
@@ -124,7 +133,7 @@ Project-specific rule docs (`CLAUDE.md`, `AGENTS.md`, `docs/coding-guidelines.md
 | Change planner | `src/plan/planner.ts` |
 | Patch applier | `src/apply/applier.ts` |
 | Git client | `src/git/client.ts` |
-| GitHub client | `src/github/client.ts` |
+| GitHub client | `src/github/client.ts` (gh CLI), `src/github/appClient.ts` + `appAuth.ts` (App REST), `factory.ts` (backend select) |
 | PR body generator | `src/pr/body.ts` |
 | Safety guard | `src/safety/guard.ts` |
 

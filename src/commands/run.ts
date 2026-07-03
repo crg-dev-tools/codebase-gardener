@@ -3,7 +3,7 @@ import { apply } from "../apply/applier";
 import { createAdapter } from "../claude/adapter";
 import { loadConfig } from "../config/loader";
 import { ShellGitClient } from "../git/client";
-import { GhCliClient } from "../github/client";
+import { createGithubClient } from "../github/factory";
 import { logger } from "../logger";
 import { planAll } from "../plan/planner";
 import { buildPrBody } from "../pr/body";
@@ -103,7 +103,15 @@ export async function runRun(opts: RunOptions): Promise<number> {
       logger.info("  PR not created (pass --create-pr).");
       continue;
     }
-    const code = await openPullRequest(root, git, result.branch, changePlan, result, config);
+    const code = await openPullRequest(
+      root,
+      git,
+      result.branch,
+      baseBranch,
+      changePlan,
+      result,
+      config,
+    );
     if (code !== 0) exitCode = code;
   }
 
@@ -122,17 +130,26 @@ async function openPullRequest(
   root: string,
   git: ShellGitClient,
   branch: string,
+  baseBranch: string | null,
   changePlan: import("../types").ChangePlan,
   result: import("../apply/applier").ApplyResult,
   config: import("../config/schema").Config,
 ): Promise<number> {
-  const gh = new GhCliClient(root);
+  let gh;
+  try {
+    gh = await createGithubClient(git, root);
+  } catch (err) {
+    logger.error(`${(err as Error).message}. Branch is committed locally.`);
+    return 1;
+  }
   if (!(await gh.isAvailable())) {
-    logger.error("gh CLI not found; cannot create PR. Branch is committed locally.");
+    logger.error("no GitHub backend available; branch is committed locally.");
     return 1;
   }
   if (!(await gh.isAuthenticated())) {
-    logger.error("gh is not authenticated; run `gh auth login`. Branch is committed locally.");
+    logger.error(
+      "GitHub backend is not authenticated (gh auth login, or check App creds). Branch is committed locally.",
+    );
     return 1;
   }
 
@@ -143,6 +160,7 @@ async function openPullRequest(
     title: changePlan.title,
     body,
     branch,
+    base: baseBranch ?? undefined,
     draft: config.pr.draft,
     labels: config.pr.labels,
   });
