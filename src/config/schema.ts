@@ -5,6 +5,8 @@ import { z } from "zod";
 export const ruleIdSchema = z.enum([
   "lint_fix",
   "unused_import",
+  "unused_variable",
+  "remove_debugger",
   "deprecated_api",
   "type_narrowing",
   "small_test_addition",
@@ -31,6 +33,8 @@ export const configSchema = z.object({
     .default([
       "lint_fix",
       "unused_import",
+      "unused_variable",
+      "remove_debugger",
       "deprecated_api",
       "type_narrowing",
       "small_test_addition",

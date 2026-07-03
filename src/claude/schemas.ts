@@ -5,6 +5,8 @@ import * as z from "zod/v4";
 const ruleId = z.enum([
   "lint_fix",
   "unused_import",
+  "unused_variable",
+  "remove_debugger",
   "deprecated_api",
   "type_narrowing",
   "small_test_addition",

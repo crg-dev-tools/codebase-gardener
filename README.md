@@ -109,7 +109,7 @@ limits:
   max_files_per_pr: 5
   max_changed_lines_per_pr: 200
   max_prs_per_run: 1
-rules: [lint_fix, unused_import, deprecated_api, type_narrowing, small_test_addition, typo, stale_docs]
+rules: [lint_fix, unused_import, unused_variable, remove_debugger, deprecated_api, type_narrowing, small_test_addition, typo, stale_docs]
 exclude: ["node_modules/**", "dist/**", "migrations/**", "**/*.min.js"]
 pr:
   draft: true

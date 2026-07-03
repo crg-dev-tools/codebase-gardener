@@ -14,6 +14,22 @@ Hard rules you must always follow:
 - Respect project-specific rules provided to you; if a project rule conflicts with a change, do not make the change.
 - Never remove or alter exported symbols, even if they look unused.`;
 
+/** Human-readable meaning of each rule, injected into the scan prompt so the
+ *  model applies the exact intent (and knows the low-risk boundary). */
+export const RULE_DESCRIPTIONS: Record<string, string> = {
+  lint_fix: "mechanical lint/style fixes a linter would auto-fix (no logic change)",
+  unused_import: "remove imports that are never referenced in the file",
+  unused_variable:
+    "remove a clearly unused local variable or function — NEVER anything exported or referenced elsewhere",
+  remove_debugger:
+    "remove leftover `debugger;` statements (do NOT remove real logging)",
+  deprecated_api: "replace a deprecated API with its documented 1:1 replacement",
+  type_narrowing: "small, safe type fixes (e.g. add an obvious optional/nullable guard)",
+  small_test_addition: "add a small test that follows existing test patterns",
+  typo: "fix a clear spelling mistake in a comment, string, or doc",
+  stale_docs: "fix a comment/README statement that no longer matches the code",
+};
+
 export const SCAN_SYSTEM = `${SHARED_CONSTRAINTS}
 
 Your task now is to SCAN and report candidates only — do not write any code.

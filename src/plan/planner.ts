@@ -13,6 +13,10 @@ function commitInfoFor(rules: Set<string>): {
   }
   if (rules.has("unused_import"))
     return { type: "chore", subject: "remove unused imports" };
+  if (rules.has("unused_variable"))
+    return { type: "chore", subject: "remove unused variables" };
+  if (rules.has("remove_debugger"))
+    return { type: "chore", subject: "remove leftover debugger statements" };
   if (rules.has("lint_fix"))
     return { type: "chore", subject: "fix lint warnings" };
   if (rules.has("deprecated_api"))

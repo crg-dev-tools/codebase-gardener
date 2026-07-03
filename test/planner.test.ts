@@ -33,6 +33,18 @@ describe("planner", () => {
     expect(result!.candidates).toHaveLength(1);
   });
 
+  it("has accurate messages for the new rules", () => {
+    const config = defaultConfig();
+    expect(
+      plan([candidate({ rule: "unused_variable" })], config, FIXED)!
+        .commitMessage,
+    ).toBe("chore: remove unused variables");
+    expect(
+      plan([candidate({ rule: "remove_debugger" })], config, FIXED)!
+        .commitMessage,
+    ).toBe("chore: remove leftover debugger statements");
+  });
+
   it("uses the branch prefix from config", () => {
     const config = defaultConfig();
     config.pr.branch_prefix = "bot/";

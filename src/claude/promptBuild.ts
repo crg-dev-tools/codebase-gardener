@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Config } from "../config/schema";
 import { logger } from "../logger";
 import type { Candidate, RepoContext } from "../types";
+import { RULE_DESCRIPTIONS } from "./prompts";
 
 /** Char budgets that keep prompts within a sane token range. */
 export const SCAN_TOTAL_BUDGET = 120_000;
@@ -62,8 +63,13 @@ export function buildScanPrompt(
     ? `Project-specific rules (obey these; they outrank generic guidance):\n${context.projectRules}\n\n`
     : "";
 
+  const ruleGlossary = config.rules
+    .map((r) => `  - ${r}: ${RULE_DESCRIPTIONS[r] ?? ""}`)
+    .join("\n");
+
   const prompt = `Repository languages: ${context.languages.join(", ") || "unknown"}.
-Allowed rules (only propose candidates in this set): ${config.rules.join(", ")}.
+Allowed rules (only propose candidates in this set):
+${ruleGlossary}
 Limits for a single PR: max ${config.limits.max_files_per_pr} files, max ${config.limits.max_changed_lines_per_pr} changed lines.
 
 ${projectRules}Below are the repository source files. Identify low-risk maintenance candidates.

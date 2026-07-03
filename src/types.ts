@@ -6,6 +6,8 @@ export type RiskLevel = "low" | "medium" | "high";
 export type RuleId =
   | "lint_fix"
   | "unused_import"
+  | "unused_variable"
+  | "remove_debugger"
   | "deprecated_api"
   | "type_narrowing"
   | "small_test_addition"
