@@ -1,5 +1,4 @@
 import { Command } from "commander";
-import { runBatch } from "./commands/batch";
 import { runDoctor } from "./commands/doctor";
 import { runInit } from "./commands/init";
 import { runRun } from "./commands/run";
@@ -77,32 +76,6 @@ export async function main(argv: string[]): Promise<number> {
         dryRun: Boolean(opts.dryRun),
         createPr: Boolean(opts.createPr),
         json: Boolean(opts.json),
-        rules: opts.rules,
-        maxFiles: opts.maxFiles,
-        maxChangedLines: opts.maxChangedLines,
-        maxPrs: opts.maxPrs,
-      });
-    });
-
-  program
-    .command("batch")
-    .description("Run the pipeline across every repo in a registry file")
-    .option(
-      "--registry <path>",
-      "path to the repos registry",
-      "codebase-gardener.repos.yml",
-    )
-    .option("--dry-run", "default dry-run for all repos", false)
-    .option("--create-pr", "default create-pr for all repos", false)
-    .option("--rules <list>", "default comma-separated rule allow-list")
-    .option("--max-files <n>", "default max files per PR", parseIntOpt)
-    .option("--max-changed-lines <n>", "default max changed lines", parseIntOpt)
-    .option("--max-prs <n>", "default max PRs per run", parseIntOpt)
-    .action(async (opts) => {
-      exitCode = await runBatch({
-        registry: opts.registry,
-        dryRun: Boolean(opts.dryRun),
-        createPr: Boolean(opts.createPr),
         rules: opts.rules,
         maxFiles: opts.maxFiles,
         maxChangedLines: opts.maxChangedLines,

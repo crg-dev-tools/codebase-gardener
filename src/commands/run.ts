@@ -3,7 +3,7 @@ import { apply } from "../apply/applier";
 import { createAdapter } from "../claude/adapter";
 import { loadConfig } from "../config/loader";
 import { ShellGitClient } from "../git/client";
-import { createGithubClient } from "../github/factory";
+import { GhCliClient } from "../github/client";
 import { logger } from "../logger";
 import { planAll } from "../plan/planner";
 import { buildPrBody } from "../pr/body";
@@ -103,15 +103,7 @@ export async function runRun(opts: RunOptions): Promise<number> {
       logger.info("  PR not created (pass --create-pr).");
       continue;
     }
-    const code = await openPullRequest(
-      root,
-      git,
-      result.branch,
-      baseBranch,
-      changePlan,
-      result,
-      config,
-    );
+    const code = await openPullRequest(root, git, result.branch, changePlan, result, config);
     if (code !== 0) exitCode = code;
   }
 
@@ -130,42 +122,27 @@ async function openPullRequest(
   root: string,
   git: ShellGitClient,
   branch: string,
-  baseBranch: string | null,
   changePlan: import("../types").ChangePlan,
   result: import("../apply/applier").ApplyResult,
   config: import("../config/schema").Config,
 ): Promise<number> {
-  let gh;
-  try {
-    gh = await createGithubClient(git, root);
-  } catch (err) {
-    logger.error(`${(err as Error).message}. Branch is committed locally.`);
-    return 1;
-  }
+  const gh = new GhCliClient(root);
   if (!(await gh.isAvailable())) {
-    logger.error("no GitHub backend available; branch is committed locally.");
+    logger.error("gh CLI not found; cannot create PR. Branch is committed locally.");
     return 1;
   }
   if (!(await gh.isAuthenticated())) {
-    logger.error(
-      "GitHub backend is not authenticated (gh auth login, or check App creds). Branch is committed locally.",
-    );
+    logger.error("gh is not authenticated; run `gh auth login`. Branch is committed locally.");
     return 1;
   }
 
-  const authUrl = await gh.authenticatedRemoteUrl();
-  if (authUrl) {
-    await git.pushToUrl(branch, authUrl);
-  } else {
-    await git.push(branch);
-  }
+  await git.push(branch);
 
   const body = buildPrBody(changePlan, result.edits, result.verification);
   const url = await gh.createPullRequest({
     title: changePlan.title,
     body,
     branch,
-    base: baseBranch ?? undefined,
     draft: config.pr.draft,
     labels: config.pr.labels,
   });

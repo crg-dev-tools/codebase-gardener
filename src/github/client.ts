@@ -7,8 +7,6 @@ export interface CreatePrOptions {
   branch: string;
   draft: boolean;
   labels: string[];
-  /** Base branch for the PR. Omit to let the backend use the repo default. */
-  base?: string;
 }
 
 /**
@@ -20,9 +18,6 @@ export interface GithubClient {
   isAvailable(): Promise<boolean>;
   isAuthenticated(): Promise<boolean>;
   createPullRequest(opts: CreatePrOptions): Promise<string>;
-  /** A push URL with embedded credentials, or null to use ambient git auth
-   *  (i.e. `git push origin`). The App backend returns a token-injected URL. */
-  authenticatedRemoteUrl(): Promise<string | null>;
 }
 
 /** Build the `gh pr create` argv (without labels — labels are applied
@@ -38,18 +33,12 @@ export function buildPrCreateArgs(opts: CreatePrOptions): string[] {
     "--head",
     opts.branch,
   ];
-  if (opts.base) args.push("--base", opts.base);
   if (opts.draft) args.push("--draft");
   return args;
 }
 
 export class GhCliClient implements GithubClient {
   constructor(private readonly cwd: string) {}
-
-  /** The CLI backend pushes with the user's ambient git auth. */
-  async authenticatedRemoteUrl(): Promise<string | null> {
-    return null;
-  }
 
   async isAvailable(): Promise<boolean> {
     const res = await run("gh", ["--version"], this.cwd);

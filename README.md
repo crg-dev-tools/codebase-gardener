@@ -17,14 +17,7 @@ Two backends are supported, chosen automatically:
 
 Force one with `GARDENER_BACKEND=cli` or `GARDENER_BACKEND=api`. Run `doctor` to see which is active.
 
-## GitHub backend
-
-PR creation goes through a `GithubClient` interface with two implementations, selected automatically:
-
-1. **`gh` CLI (default)** — uses your ambient `gh` login.
-2. **GitHub App** — when `GARDENER_GH_APP_ID`, `GARDENER_GH_APP_PRIVATE_KEY`, and `GARDENER_GH_INSTALLATION_ID` are set, the tool mints a short-lived installation access token (App JWT → installation token), **pushes the branch with a token-injected URL**, and creates PRs via the GitHub REST API — no `gh` or ambient git auth needed. This is the path a worker/GitHub-App deployment uses.
-
-Force with `GARDENER_GITHUB_BACKEND=cli|app`.
+GitHub operations go through a small `GithubClient` interface (currently the `gh` CLI), so a future GitHub-App token implementation can drop in without changing callers.
 
 ## Requirements
 
@@ -49,7 +42,6 @@ codebase-gardener doctor        # check git / gh / node / Claude backend / repo 
 codebase-gardener init          # write .github/codebase-gardener.yml template
 codebase-gardener scan          # list candidates (no branches/PRs)
 codebase-gardener run           # scan -> plan -> apply a small branch
-codebase-gardener batch         # run the pipeline across many repos (registry)
 ```
 
 ### scan
@@ -74,27 +66,6 @@ Options: `--repo <path>`, `--dry-run`, `--create-pr`, `--rules <a,b>`, `--max-fi
 A single `run` can produce several PRs — one coherent PR per rule (so commit messages stay accurate) — up to `max_prs_per_run` (default 1). On a same-day re-run branch names auto-suffix (`-2`, `-3`, …) so they never collide. A formatter (if the repo has one) runs before commit and its output is included.
 
 **Safety:** `run` requires a clean working tree, only acts on low-risk candidates in the configured rule allow-list, enforces file/line/PR limits, honors excluded paths, and defaults to at most one PR per run. If produced edits exceed a limit, the change is rolled back and aborted. Business logic, auth, billing, DB migrations, public API, and large refactors are out of scope by design.
-
-### batch (Phase 2 — multiple repos)
-
-Register repos in a YAML file and run the pipeline across all of them (e.g. from a local cron):
-
-```bash
-node dist/index.js batch --registry codebase-gardener.repos.yml --dry-run
-node dist/index.js batch --registry codebase-gardener.repos.yml --create-pr
-```
-
-```yaml
-# codebase-gardener.repos.yml  (paths resolve relative to this file)
-repos:
-  - path: ../my-app
-  - path: ../another-service
-    rules: [typo, unused_import]   # per-repo overrides win over batch defaults
-    create_pr: true
-    max_prs: 2
-```
-
-CLI flags (`--dry-run`, `--create-pr`, `--rules`, `--max-files`, `--max-changed-lines`, `--max-prs`) are the defaults; each repo entry may override them. See `codebase-gardener.repos.yml.example`.
 
 ## Configuration
 
@@ -125,7 +96,6 @@ Project-specific rule docs (`CLAUDE.md`, `AGENTS.md`, `docs/coding-guidelines.md
 |---|---|
 | CLI | `src/cli.ts`, `src/commands/*` |
 | Config loader | `src/config/loader.ts`, `src/config/schema.ts` |
-| Batch registry | `src/config/registry.ts`, `src/commands/batch.ts` |
 | Repo inspector | `src/repo/inspector.ts` |
 | Rule/context loader | `src/repo/rulesContext.ts` |
 | Candidate scanner | `src/scan/scanner.ts` |
@@ -133,7 +103,7 @@ Project-specific rule docs (`CLAUDE.md`, `AGENTS.md`, `docs/coding-guidelines.md
 | Change planner | `src/plan/planner.ts` |
 | Patch applier | `src/apply/applier.ts` |
 | Git client | `src/git/client.ts` |
-| GitHub client | `src/github/client.ts` (gh CLI), `src/github/appClient.ts` + `appAuth.ts` (App REST), `factory.ts` (backend select) |
+| GitHub client | `src/github/client.ts` (gh CLI) |
 | PR body generator | `src/pr/body.ts` |
 | Safety guard | `src/safety/guard.ts` |
 

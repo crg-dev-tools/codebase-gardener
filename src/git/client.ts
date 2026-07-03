@@ -16,9 +16,6 @@ export interface GitClient {
   add(paths: string[]): Promise<void>;
   commit(message: string): Promise<void>;
   push(branch: string): Promise<void>;
-  /** Push a branch to an explicit (credentialed) URL, without touching the
-   *  configured `origin`. Used by the GitHub App backend. */
-  pushToUrl(branch: string, remoteUrl: string): Promise<void>;
   /** Number of changed lines (added + deleted) relative to HEAD, counting
    *  both staged and unstaged changes. */
   changedLineCount(): Promise<number>;
@@ -28,8 +25,6 @@ export interface GitClient {
   deleteBranch(name: string): Promise<void>;
   /** True if a branch with this name exists locally or on `origin`. */
   branchExists(name: string): Promise<boolean>;
-  /** The `origin` remote URL, or null if there is none. */
-  remoteUrl(): Promise<string | null>;
 }
 
 export class ShellGitClient implements GitClient {
@@ -107,18 +102,6 @@ export class ShellGitClient implements GitClient {
     }
   }
 
-  async pushToUrl(branch: string, remoteUrl: string): Promise<void> {
-    const res = await this.git(["push", remoteUrl, `${branch}:${branch}`]);
-    if (res.code !== 0) {
-      // Never surface an embedded token in error output.
-      const scrubbed = res.stderr.replace(
-        /x-access-token:[^@]+@/g,
-        "x-access-token:***@",
-      );
-      throw new Error(`git push failed: ${scrubbed.trim()}`);
-    }
-  }
-
   async changedLineCount(): Promise<number> {
     // Diff against HEAD so the count includes staged changes (after `git add`,
     // a plain `git diff` shows nothing). Covers both staged and unstaged.
@@ -152,12 +135,5 @@ export class ShellGitClient implements GitClient {
     if (local.code === 0) return true;
     const remote = await this.git(["ls-remote", "--heads", "origin", name]);
     return remote.code === 0 && remote.stdout.trim() !== "";
-  }
-
-  async remoteUrl(): Promise<string | null> {
-    const res = await this.git(["remote", "get-url", "origin"]);
-    if (res.code !== 0) return null;
-    const url = res.stdout.trim();
-    return url === "" ? null : url;
   }
 }
