@@ -31,6 +31,11 @@ export class AppGithubClient implements GithubClient {
     return `${this.ownerRepo.owner}/${this.ownerRepo.repo}`;
   }
 
+  /** A token-injected HTTPS URL so `git push` authenticates as the App. */
+  async authenticatedRemoteUrl(): Promise<string | null> {
+    return `https://x-access-token:${this.token}@github.com/${this.repoPath()}.git`;
+  }
+
   async isAvailable(): Promise<boolean> {
     return this.token.length > 0;
   }

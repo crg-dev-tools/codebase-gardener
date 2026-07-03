@@ -16,6 +16,9 @@ export interface GitClient {
   add(paths: string[]): Promise<void>;
   commit(message: string): Promise<void>;
   push(branch: string): Promise<void>;
+  /** Push a branch to an explicit (credentialed) URL, without touching the
+   *  configured `origin`. Used by the GitHub App backend. */
+  pushToUrl(branch: string, remoteUrl: string): Promise<void>;
   /** Number of changed lines (added + deleted) relative to HEAD, counting
    *  both staged and unstaged changes. */
   changedLineCount(): Promise<number>;
@@ -101,6 +104,18 @@ export class ShellGitClient implements GitClient {
     const res = await this.git(["push", "--set-upstream", "origin", branch]);
     if (res.code !== 0) {
       throw new Error(`git push failed: ${res.stderr.trim()}`);
+    }
+  }
+
+  async pushToUrl(branch: string, remoteUrl: string): Promise<void> {
+    const res = await this.git(["push", remoteUrl, `${branch}:${branch}`]);
+    if (res.code !== 0) {
+      // Never surface an embedded token in error output.
+      const scrubbed = res.stderr.replace(
+        /x-access-token:[^@]+@/g,
+        "x-access-token:***@",
+      );
+      throw new Error(`git push failed: ${scrubbed.trim()}`);
     }
   }
 

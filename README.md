@@ -22,7 +22,7 @@ Force one with `GARDENER_BACKEND=cli` or `GARDENER_BACKEND=api`. Run `doctor` to
 PR creation goes through a `GithubClient` interface with two implementations, selected automatically:
 
 1. **`gh` CLI (default)** — uses your ambient `gh` login.
-2. **GitHub App (Phase 3 groundwork)** — when `GARDENER_GH_APP_ID`, `GARDENER_GH_APP_PRIVATE_KEY`, and `GARDENER_GH_INSTALLATION_ID` are set, the tool mints a short-lived installation access token (App JWT → installation token) and creates PRs via the GitHub REST API — no `gh` needed. This is the seam a future worker/GitHub-App deployment uses. (Branch **push** still uses local git auth in the MVP; token-injected push is the next step.)
+2. **GitHub App** — when `GARDENER_GH_APP_ID`, `GARDENER_GH_APP_PRIVATE_KEY`, and `GARDENER_GH_INSTALLATION_ID` are set, the tool mints a short-lived installation access token (App JWT → installation token), **pushes the branch with a token-injected URL**, and creates PRs via the GitHub REST API — no `gh` or ambient git auth needed. This is the path a worker/GitHub-App deployment uses.
 
 Force with `GARDENER_GITHUB_BACKEND=cli|app`.
 

@@ -153,7 +153,12 @@ async function openPullRequest(
     return 1;
   }
 
-  await git.push(branch);
+  const authUrl = await gh.authenticatedRemoteUrl();
+  if (authUrl) {
+    await git.pushToUrl(branch, authUrl);
+  } else {
+    await git.push(branch);
+  }
 
   const body = buildPrBody(changePlan, result.edits, result.verification);
   const url = await gh.createPullRequest({
