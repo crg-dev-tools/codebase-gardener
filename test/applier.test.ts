@@ -77,10 +77,12 @@ describe("applier rollback (integration)", () => {
     const baseBranch = git(dir, ["rev-parse", "--abbrev-ref", "HEAD"]).trim();
     const gitClient = new ShellGitClient(dir);
 
-    // A damaging edit: keeps the doc text but removes the ``` fences.
+    // A damaging edit: a replacement that removes the ``` fences.
     const damaged: FileEdit = {
       file: "README.md",
-      newContent: "# Doc\n\nbash\nnpm install\n\nSome text.\n",
+      replacements: [
+        { oldString: "```bash\nnpm install\n```", newString: "npm install" },
+      ],
       summary: "update",
     };
     const adapter = new StubAdapter([damaged]);
@@ -114,7 +116,7 @@ describe("applier rollback (integration)", () => {
 
     const clean: FileEdit = {
       file: "README.md",
-      newContent: "# Docs\n\n```bash\nnpm ci\n```\n\nSome text.\n",
+      replacements: [{ oldString: "npm install", newString: "npm ci" }],
       summary: "tidy docs",
     };
     const adapter = new StubAdapter([clean]);

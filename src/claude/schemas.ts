@@ -26,12 +26,18 @@ export const scanResultSchema = z.object({
   ),
 });
 
-/** Structured-output schema for the plan/apply step. */
+/** Structured-output schema for the plan/apply step. Edits are minimal
+ *  exact-string replacements, not whole-file rewrites. */
 export const editResultSchema = z.object({
   edits: z.array(
     z.object({
       file: z.string(),
-      newContent: z.string(),
+      replacements: z.array(
+        z.object({
+          oldString: z.string(),
+          newString: z.string(),
+        }),
+      ),
       summary: z.string(),
     }),
   ),

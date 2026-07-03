@@ -7,6 +7,7 @@ import { logger } from "../logger";
 import { checkContentIntegrity, checkEditLimits } from "../safety/guard";
 import type { ChangePlan, FileEdit, RepoContext } from "../types";
 import { run } from "../util/exec";
+import { applyReplacements } from "./patch";
 
 export interface ApplyOptions {
   dryRun: boolean;
@@ -69,38 +70,72 @@ export async function apply(
     };
   }
 
-  const editedPaths = edits.map((e) => e.file);
-
-  // Capture the original contents (pre-write) for content-integrity checks.
-  const integrityItems = edits.map((e) => {
-    let original = "";
+  // Resolve each edit's replacements into concrete file content. An edit whose
+  // replacements don't match uniquely is skipped (never partially applied).
+  const resolved: Array<{
+    file: string;
+    original: string;
+    newContent: string;
+    edit: FileEdit;
+  }> = [];
+  for (const edit of edits) {
+    let original: string;
     try {
-      original = readFileSync(join(context.root, e.file), "utf8");
+      original = readFileSync(join(context.root, edit.file), "utf8");
     } catch {
-      /* new file or unreadable — treated as empty original */
+      logger.warn(`skipping ${edit.file}: cannot read file`);
+      continue;
     }
-    return { file: e.file, original, newContent: e.newContent };
-  });
+    const result = applyReplacements(original, edit.replacements);
+    if (!result.ok) {
+      logger.warn(`skipping ${edit.file}: ${result.error}`);
+      continue;
+    }
+    if (result.content === original) {
+      logger.debug(`skipping ${edit.file}: replacements produced no change`);
+      continue;
+    }
+    resolved.push({ file: edit.file, original, newContent: result.content, edit });
+  }
+
+  if (resolved.length === 0) {
+    logger.warn("no edits applied cleanly");
+    return {
+      edits,
+      committed: false,
+      branch: plan.branch,
+      changedLines: 0,
+      verification: skipped,
+    };
+  }
+
+  const appliedEdits = resolved.map((r) => r.edit);
+  const editedPaths = resolved.map((r) => r.file);
+  const integrityItems = resolved.map((r) => ({
+    file: r.file,
+    original: r.original,
+    newContent: r.newContent,
+  }));
 
   const branch = await resolveBranchName(git, plan.branch);
 
   await git.createBranch(branch);
   try {
-    for (const edit of edits) {
-      writeFileSync(join(context.root, edit.file), edit.newContent, "utf8");
+    for (const r of resolved) {
+      writeFileSync(join(context.root, r.file), r.newContent, "utf8");
     }
     await git.add(editedPaths);
 
     const changedLines = await git.changedLineCount();
     const violations = [
-      ...checkEditLimits(edits, changedLines, config),
+      ...checkEditLimits(appliedEdits, changedLines, config),
       ...checkContentIntegrity(integrityItems),
     ];
     if (violations.length > 0) {
       for (const v of violations) logger.warn(v.message);
       await rollback(git, branch, opts.baseBranch);
       return {
-        edits,
+        edits: appliedEdits,
         committed: false,
         branch,
         changedLines,
@@ -115,7 +150,13 @@ export async function apply(
     await git.add(editedPaths);
 
     await git.commit(plan.commitMessage);
-    return { edits, committed: true, branch, changedLines, verification };
+    return {
+      edits: appliedEdits,
+      committed: true,
+      branch,
+      changedLines,
+      verification,
+    };
   } catch (err) {
     await rollback(git, branch, opts.baseBranch);
     throw err;

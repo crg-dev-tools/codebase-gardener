@@ -28,12 +28,20 @@ export interface Candidate {
   expectedDiff: string;
 }
 
-/** A concrete file edit produced during `run`. */
+/** A single exact-string replacement within a file. `oldString` must occur
+ *  exactly once in the file; only that span changes. */
+export interface Replacement {
+  oldString: string;
+  newString: string;
+}
+
+/** A concrete file edit produced during `run`, expressed as minimal string
+ *  replacements so unrelated content cannot change. */
 export interface FileEdit {
-  /** Repo-relative path of the file to write. */
+  /** Repo-relative path of the file to edit. */
   file: string;
-  /** Full new contents of the file after the minimal edit. */
-  newContent: string;
+  /** One or more exact-match replacements to apply, in order. */
+  replacements: Replacement[];
   /** One-line explanation of the change for the PR body. */
   summary: string;
 }
