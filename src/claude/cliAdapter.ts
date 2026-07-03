@@ -97,14 +97,15 @@ ${userPrompt}`;
   async scanCandidates(
     context: RepoContext,
     config: Config,
+    files: string[],
   ): Promise<Candidate[]> {
     const result = await this.call(
       SCAN_SYSTEM,
-      buildScanPrompt(context, config),
+      buildScanPrompt(context, config, files),
       scanResultSchema,
     );
     if (!result) return [];
-    const inScope = new Set(context.files);
+    const inScope = new Set(files);
     return result.candidates.filter((c) => inScope.has(c.file)) as Candidate[];
   }
 

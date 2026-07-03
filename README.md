@@ -73,6 +73,7 @@ Optional. Without a config file, safe defaults apply. See `.github/codebase-gard
 enabled: true
 mode: safe
 min_confidence: 0.6   # candidates below this model confidence are skipped by `run`
+max_scan_chunks: 8    # cap on scan chunks (model calls) for a large repo
 limits:
   max_files_per_pr: 5
   max_changed_lines_per_pr: 200
@@ -116,7 +117,7 @@ CI (`.github/workflows/ci.yml`) runs `build` + `test` on every push and PR.
 ## Known limitations
 
 - **Model-authored edits.** The apply step asks the model for minimal exact-string replacements rather than full file contents, which keeps diffs small. The safety guard still catches the common failure case (Markdown code-fence count changes) and rolls back if an edit drifts.
-- **Large repos.** `scan` sends file contents up to a fixed character budget; on very large repos only a subset is examined per run.
+- **Large repos.** `scan` splits files into size-bounded chunks and scans each, so the whole repo is covered — bounded by `max_scan_chunks` (default 8) to cap model calls. A repo larger than that budget logs how many files were skipped.
 - **One PR per run.** The MVP produces at most one PR per `run`; `max_prs_per_run` is reserved for a future multi-PR loop.
 
 ## License

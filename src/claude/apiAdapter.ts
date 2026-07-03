@@ -15,6 +15,7 @@ export class AnthropicApiAdapter implements ClaudeAdapter {
   async scanCandidates(
     context: RepoContext,
     config: Config,
+    files: string[],
   ): Promise<Candidate[]> {
     const client = createClient();
     const response = await client.messages.parse({
@@ -26,11 +27,13 @@ export class AnthropicApiAdapter implements ClaudeAdapter {
         effort: "high",
       },
       system: SCAN_SYSTEM,
-      messages: [{ role: "user", content: buildScanPrompt(context, config) }],
+      messages: [
+        { role: "user", content: buildScanPrompt(context, config, files) },
+      ],
     });
     const parsed = response.parsed_output;
     if (!parsed) return [];
-    const inScope = new Set(context.files);
+    const inScope = new Set(files);
     return parsed.candidates.filter((c) => inScope.has(c.file)) as Candidate[];
   }
 

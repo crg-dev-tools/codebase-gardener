@@ -46,11 +46,15 @@ export function buildDigest(
   return parts.join("\n\n");
 }
 
-/** Build the user prompt for the scan step. */
-export function buildScanPrompt(context: RepoContext, config: Config): string {
+/** Build the user prompt for the scan step over an explicit set of files. */
+export function buildScanPrompt(
+  context: RepoContext,
+  config: Config,
+  files: string[],
+): string {
   const digest = buildDigest(
     context.root,
-    context.files,
+    files,
     SCAN_TOTAL_BUDGET,
     SCAN_PER_FILE,
   );
@@ -104,7 +108,7 @@ export function buildApplyPrompt(
     ? `Project-specific rules (obey these):\n${context.projectRules}\n\n`
     : "";
 
-  const prompt = `Apply the following pre-selected low-risk candidates by returning the full new contents of each file you change.
+  const prompt = `Apply the following pre-selected low-risk candidates by returning minimal exact-string replacements for each file you change (see the system instructions for the required format).
 
 Candidates:
 ${candidateList}

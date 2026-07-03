@@ -12,6 +12,9 @@ mode: safe
 # Minimum model confidence (0..1) for a candidate to be acted on by run.
 min_confidence: 0.6
 
+# Max scan chunks (model calls) for a large repo; caps how many are made.
+max_scan_chunks: 8
+
 limits:
   max_files_per_pr: 5
   max_changed_lines_per_pr: 200

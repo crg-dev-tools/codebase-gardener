@@ -17,6 +17,8 @@ export const configSchema = z.object({
   mode: z.enum(["safe"]).default("safe"),
   /** Minimum model confidence (0..1) for a candidate to be acted on in `run`. */
   min_confidence: z.number().min(0).max(1).default(0.6),
+  /** Cap on the number of scan chunks (model calls) for a large repo. */
+  max_scan_chunks: z.number().int().positive().default(8),
   limits: z
     .object({
       max_files_per_pr: z.number().int().positive().default(5),

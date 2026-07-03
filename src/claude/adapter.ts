@@ -9,7 +9,12 @@ import { hasApiKey } from "./client";
  * of the tool never depends on a specific backend or transport.
  */
 export interface ClaudeAdapter {
-  scanCandidates(context: RepoContext, config: Config): Promise<Candidate[]>;
+  /** Scan the given subset of `files` for candidates. */
+  scanCandidates(
+    context: RepoContext,
+    config: Config,
+    files: string[],
+  ): Promise<Candidate[]>;
   planEdits(context: RepoContext, candidates: Candidate[]): Promise<FileEdit[]>;
 }
 
