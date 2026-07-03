@@ -115,7 +115,7 @@ CI (`.github/workflows/ci.yml`) runs `build` + `test` on every push and PR.
 
 ## Known limitations
 
-- **Whole-file edits.** The apply step asks the model for the full new file contents, so a large-file rewrite can introduce unrelated changes. The safety guard catches the common case (Markdown code-fence count changes) and rolls back, but a patch/diff-based edit format is the planned, more robust replacement.
+- **Model-authored edits.** The apply step asks the model for minimal exact-string replacements rather than full file contents, which keeps diffs small. The safety guard still catches the common failure case (Markdown code-fence count changes) and rolls back if an edit drifts.
 - **Large repos.** `scan` sends file contents up to a fixed character budget; on very large repos only a subset is examined per run.
 - **One PR per run.** The MVP produces at most one PR per `run`; `max_prs_per_run` is reserved for a future multi-PR loop.
 
