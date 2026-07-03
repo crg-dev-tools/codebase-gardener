@@ -16,12 +16,15 @@ export interface GitClient {
   add(paths: string[]): Promise<void>;
   commit(message: string): Promise<void>;
   push(branch: string): Promise<void>;
-  /** Number of changed lines (added + deleted) in the working tree. */
+  /** Number of changed lines (added + deleted) relative to HEAD, counting
+   *  both staged and unstaged changes. */
   changedLineCount(): Promise<number>;
   /** Discard ALL staged and working-tree changes, resetting to HEAD. */
   discardAllChanges(): Promise<void>;
   /** Delete a local branch (force). */
   deleteBranch(name: string): Promise<void>;
+  /** True if a branch with this name exists locally or on `origin`. */
+  branchExists(name: string): Promise<boolean>;
 }
 
 export class ShellGitClient implements GitClient {
@@ -100,7 +103,9 @@ export class ShellGitClient implements GitClient {
   }
 
   async changedLineCount(): Promise<number> {
-    const res = await this.git(["diff", "--numstat"]);
+    // Diff against HEAD so the count includes staged changes (after `git add`,
+    // a plain `git diff` shows nothing). Covers both staged and unstaged.
+    const res = await this.git(["diff", "HEAD", "--numstat"]);
     if (res.code !== 0) return 0;
     let total = 0;
     for (const line of res.stdout.split("\n")) {
@@ -123,5 +128,12 @@ export class ShellGitClient implements GitClient {
 
   async deleteBranch(name: string): Promise<void> {
     await this.git(["branch", "-D", name]);
+  }
+
+  async branchExists(name: string): Promise<boolean> {
+    const local = await this.git(["rev-parse", "--verify", "--quiet", name]);
+    if (local.code === 0) return true;
+    const remote = await this.git(["ls-remote", "--heads", "origin", name]);
+    return remote.code === 0 && remote.stdout.trim() !== "";
   }
 }

@@ -4,6 +4,9 @@ enabled: true
 # safe | (future: aggressive) — only "safe" is honored in the MVP
 mode: safe
 
+# Minimum model confidence (0..1) for a candidate to be acted on in `run`.
+min_confidence: 0.6
+
 limits:
   max_files_per_pr: 5
   max_changed_lines_per_pr: 200

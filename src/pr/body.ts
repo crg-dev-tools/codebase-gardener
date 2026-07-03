@@ -1,17 +1,23 @@
+import type { VerificationResult } from "../apply/applier";
 import type { ChangePlan, FileEdit } from "../types";
 
-/** Build a PR body from the plan + concrete edits, following the spec template. */
+/** Render a check line reflecting the actual verification state. */
+function checkLine(label: string, state: "passed" | "failed" | "skipped"): string {
+  if (state === "passed") return `- [x] ${label} passed`;
+  if (state === "failed") return `- [ ] ${label} FAILED — needs attention`;
+  return `- [ ] ${label} (not run locally; left for CI)`;
+}
+
+/** Build a PR body from the plan + concrete edits + verification results. */
 export function buildPrBody(
   plan: ChangePlan,
   edits: FileEdit[],
-  verification: { build: boolean; test: boolean; lint: boolean },
+  verification: VerificationResult,
 ): string {
   const changes =
     edits.length > 0
       ? edits.map((e) => `- \`${e.file}\`: ${e.summary}`).join("\n")
       : "- (no changes)";
-
-  const check = (ok: boolean) => (ok ? "x" : " ");
 
   return `## Summary
 
@@ -29,9 +35,8 @@ ${changes}
 
 ## Checks
 
-- [${check(verification.build)}] Build passed
-- [${check(verification.test)}] Tests passed
-- [${check(verification.lint)}] Lint passed
+${checkLine("Lint", verification.lint)}
+${checkLine("Tests", verification.test)}
 - [ ] Manual review required
 
 ## Risk

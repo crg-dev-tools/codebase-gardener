@@ -18,7 +18,7 @@ interface CliEnvelope {
  * Extract the first top-level JSON object from a text blob, tolerating
  * surrounding prose or ```json fences. Returns null if none is found.
  */
-function extractJsonObject(text: string): string | null {
+export function extractJsonObject(text: string): string | null {
   const stripped = text.replace(/```(?:json)?/gi, "");
   const start = stripped.indexOf("{");
   const end = stripped.lastIndexOf("}");

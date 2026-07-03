@@ -25,13 +25,10 @@ export function applyLimitOverrides(
   overrides: {
     maxFiles?: number;
     maxChangedLines?: number;
-    maxPrs?: number;
   },
 ): void {
   if (overrides.maxFiles !== undefined)
     config.limits.max_files_per_pr = overrides.maxFiles;
   if (overrides.maxChangedLines !== undefined)
     config.limits.max_changed_lines_per_pr = overrides.maxChangedLines;
-  if (overrides.maxPrs !== undefined)
-    config.limits.max_prs_per_run = overrides.maxPrs;
 }

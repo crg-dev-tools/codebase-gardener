@@ -3,9 +3,6 @@ import { logger } from "../logger";
 import type { Candidate, FileEdit } from "../types";
 import { matchesAny } from "../util/glob";
 
-/** Minimum model confidence for a candidate to be eligible in `run`. */
-export const MIN_CONFIDENCE = 0.6;
-
 export interface SafetyViolation {
   message: string;
 }
@@ -37,8 +34,10 @@ export function filterSafeCandidates(
       logger.debug(`drop ${c.file}: path is excluded`);
       continue;
     }
-    if (c.confidence < MIN_CONFIDENCE) {
-      logger.debug(`drop ${c.file}: confidence ${c.confidence} below ${MIN_CONFIDENCE}`);
+    if (c.confidence < config.min_confidence) {
+      logger.debug(
+        `drop ${c.file}: confidence ${c.confidence} below ${config.min_confidence}`,
+      );
       continue;
     }
     kept.push(c);

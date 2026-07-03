@@ -20,7 +20,6 @@ export interface RunOptions {
   rules?: string;
   maxFiles?: number;
   maxChangedLines?: number;
-  maxPrs?: number;
 }
 
 /** The full pipeline: scan -> plan -> apply -> (optional) PR. */
@@ -97,14 +96,15 @@ export async function runRun(opts: RunOptions): Promise<number> {
     return 0;
   }
 
-  return openPullRequest(root, git, changePlan, result.edits, config);
+  return openPullRequest(root, git, result.branch, changePlan, result, config);
 }
 
 async function openPullRequest(
   root: string,
   git: ShellGitClient,
+  branch: string,
   changePlan: import("../types").ChangePlan,
-  edits: import("../types").FileEdit[],
+  result: import("../apply/applier").ApplyResult,
   config: import("../config/schema").Config,
 ): Promise<number> {
   const gh = new GhCliClient(root);
@@ -117,17 +117,13 @@ async function openPullRequest(
     return 1;
   }
 
-  await git.push(changePlan.branch);
+  await git.push(branch);
 
-  const body = buildPrBody(changePlan, edits, {
-    build: false,
-    test: false,
-    lint: false,
-  });
+  const body = buildPrBody(changePlan, result.edits, result.verification);
   const url = await gh.createPullRequest({
     title: changePlan.title,
     body,
-    branch: changePlan.branch,
+    branch,
     draft: config.pr.draft,
     labels: config.pr.labels,
   });

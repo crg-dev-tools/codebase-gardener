@@ -15,6 +15,8 @@ export const ruleIdSchema = z.enum([
 export const configSchema = z.object({
   enabled: z.boolean().default(true),
   mode: z.enum(["safe"]).default("safe"),
+  /** Minimum model confidence (0..1) for a candidate to be acted on in `run`. */
+  min_confidence: z.number().min(0).max(1).default(0.6),
   limits: z
     .object({
       max_files_per_pr: z.number().int().positive().default(5),

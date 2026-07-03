@@ -26,6 +26,19 @@ describe("config", () => {
 
   it("defaultConfig() matches the parsed empty config", () => {
     expect(defaultConfig().limits.max_files_per_pr).toBe(5);
+    expect(defaultConfig().min_confidence).toBe(0.6);
+  });
+
+  it("reads a custom min_confidence", () => {
+    const dir2 = mkdtempSync(join(tmpdir(), "gardener-cfg2-"));
+    mkdirSync(join(dir2, ".github"), { recursive: true });
+    writeFileSync(
+      join(dir2, ".github/codebase-gardener.yml"),
+      "min_confidence: 0.85\n",
+      "utf8",
+    );
+    expect(loadConfig(dir2).config.min_confidence).toBe(0.85);
+    rmSync(dir2, { recursive: true, force: true });
   });
 
   it("reads and merges a partial config file", () => {

@@ -13,12 +13,21 @@ export interface ApplyOptions {
   baseBranch: string | null;
 }
 
+/** Outcome of a single verification step. */
+export type CheckState = "passed" | "failed" | "skipped";
+
+export interface VerificationResult {
+  lint: CheckState;
+  test: CheckState;
+}
+
 export interface ApplyResult {
   edits: FileEdit[];
   /** True when changes were written, verified, and committed. */
   committed: boolean;
   branch: string;
   changedLines: number;
+  verification: VerificationResult;
   /** Populated when the change was aborted by a safety check. */
   aborted?: string;
 }
@@ -36,15 +45,28 @@ export async function apply(
   adapter: ClaudeAdapter,
   opts: ApplyOptions,
 ): Promise<ApplyResult> {
+  const skipped: VerificationResult = { lint: "skipped", test: "skipped" };
   const edits = await adapter.planEdits(context, plan.candidates);
 
   if (edits.length === 0) {
-    return { edits, committed: false, branch: plan.branch, changedLines: 0 };
+    return {
+      edits,
+      committed: false,
+      branch: plan.branch,
+      changedLines: 0,
+      verification: skipped,
+    };
   }
 
   if (opts.dryRun) {
     logger.debug("dry-run: not writing files, creating a branch, or committing");
-    return { edits, committed: false, branch: plan.branch, changedLines: 0 };
+    return {
+      edits,
+      committed: false,
+      branch: plan.branch,
+      changedLines: 0,
+      verification: skipped,
+    };
   }
 
   const editedPaths = edits.map((e) => e.file);
@@ -60,7 +82,9 @@ export async function apply(
     return { file: e.file, original, newContent: e.newContent };
   });
 
-  await git.createBranch(plan.branch);
+  const branch = await resolveBranchName(git, plan.branch);
+
+  await git.createBranch(branch);
   try {
     for (const edit of edits) {
       writeFileSync(join(context.root, edit.file), edit.newContent, "utf8");
@@ -74,43 +98,72 @@ export async function apply(
     ];
     if (violations.length > 0) {
       for (const v of violations) logger.warn(v.message);
-      await rollback(git, plan.branch, opts.baseBranch);
+      await rollback(git, branch, opts.baseBranch);
       return {
         edits,
         committed: false,
-        branch: plan.branch,
+        branch,
         changedLines,
+        verification: skipped,
         aborted: violations.map((v) => v.message).join("; "),
       };
     }
 
-    await runVerification(context);
+    // Run format/lint/test AFTER the limit checks; a formatter may rewrite the
+    // files, so re-stage before committing to include its changes.
+    const verification = await runVerification(context);
+    await git.add(editedPaths);
 
     await git.commit(plan.commitMessage);
-    return { edits, committed: true, branch: plan.branch, changedLines };
+    return { edits, committed: true, branch, changedLines, verification };
   } catch (err) {
-    await rollback(git, plan.branch, opts.baseBranch);
+    await rollback(git, branch, opts.baseBranch);
     throw err;
   }
 }
 
-/** Best-effort format/lint/test pass. Failures are surfaced but not fatal;
- *  the resulting PR flags "Manual review required" and CI is the real gate. */
-async function runVerification(context: RepoContext): Promise<void> {
-  const steps: Array<[string, string | null]> = [
-    ["format", context.formatCommand],
-    ["lint", context.lintCommand],
-    ["test", context.testCommand],
-  ];
-  for (const [label, command] of steps) {
-    if (!command) continue;
-    logger.debug(`running ${label}: ${command}`);
-    const [bin, ...args] = command.split(" ");
-    const res = await run(bin, args, context.root);
-    if (res.code !== 0) {
-      logger.warn(`${label} reported issues (exit ${res.code}); left for review`);
-    }
+/** Find a branch name not already used locally or on origin, suffixing -2,
+ *  -3, … when the base name is taken (so same-day re-runs don't collide). */
+async function resolveBranchName(
+  git: GitClient,
+  base: string,
+): Promise<string> {
+  if (!(await git.branchExists(base))) return base;
+  for (let i = 2; i < 100; i++) {
+    const candidate = `${base}-${i}`;
+    if (!(await git.branchExists(candidate))) return candidate;
   }
+  throw new Error(`could not find a free branch name based on ${base}`);
+}
+
+/** Best-effort lint/test pass (and formatter, whose output is re-staged by the
+ *  caller). Failures are surfaced but not fatal; CI is the real gate. Returns
+ *  the pass/fail/skip state of lint and test for the PR body. */
+async function runVerification(
+  context: RepoContext,
+): Promise<VerificationResult> {
+  // Formatter first so lint/test see formatted code; its result isn't reported.
+  if (context.formatCommand) await runStep("format", context.formatCommand, context);
+  return {
+    lint: await runStep("lint", context.lintCommand, context),
+    test: await runStep("test", context.testCommand, context),
+  };
+}
+
+async function runStep(
+  label: string,
+  command: string | null,
+  context: RepoContext,
+): Promise<CheckState> {
+  if (!command) return "skipped";
+  logger.debug(`running ${label}: ${command}`);
+  const [bin, ...args] = command.split(" ");
+  const res = await run(bin, args, context.root);
+  if (res.code !== 0) {
+    logger.warn(`${label} reported issues (exit ${res.code}); left for review`);
+    return "failed";
+  }
+  return "passed";
 }
 
 async function rollback(

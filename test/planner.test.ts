@@ -41,6 +41,19 @@ describe("planner", () => {
     expect(result!.commitMessage).toBe("docs: fix typos");
   });
 
+  it("uses a generic commit message when bundling multiple rule types", () => {
+    const config = defaultConfig();
+    const result = plan(
+      [
+        candidate({ file: "a.ts", rule: "unused_import" }),
+        candidate({ file: "b.ts", rule: "typo" }),
+      ],
+      config,
+      FIXED,
+    );
+    expect(result!.commitMessage).toBe("chore: various maintenance changes");
+  });
+
   it("respects the per-PR file budget", () => {
     const config = defaultConfig();
     config.limits.max_files_per_pr = 1;

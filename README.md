@@ -59,7 +59,9 @@ node dist/index.js run                      # create a branch and commit locally
 node dist/index.js run --create-pr          # also push and open a PR (needs gh)
 ```
 
-Options: `--repo <path>`, `--dry-run`, `--create-pr`, `--rules <a,b>`, `--max-files <n>`, `--max-changed-lines <n>`, `--max-prs <n>`, `--json`.
+Options: `--repo <path>`, `--dry-run`, `--create-pr`, `--rules <a,b>`, `--max-files <n>`, `--max-changed-lines <n>`, `--json`.
+
+On a same-day re-run the branch name auto-suffixes (`-2`, `-3`, …) so it never collides. A formatter (if the repo has one) runs before commit and its output is included.
 
 **Safety:** `run` requires a clean working tree, only acts on low-risk candidates in the configured rule allow-list, enforces file/line/PR limits, honors excluded paths, and defaults to at most one PR per run. If produced edits exceed a limit, the change is rolled back and aborted. Business logic, auth, billing, DB migrations, public API, and large refactors are out of scope by design.
 
@@ -70,6 +72,7 @@ Optional. Without a config file, safe defaults apply. See `.github/codebase-gard
 ```yaml
 enabled: true
 mode: safe
+min_confidence: 0.6   # candidates below this model confidence are skipped by `run`
 limits:
   max_files_per_pr: 5
   max_changed_lines_per_pr: 200
@@ -104,10 +107,18 @@ Project-specific rule docs (`CLAUDE.md`, `AGENTS.md`, `docs/coding-guidelines.md
 ## Development
 
 ```bash
-npm test        # vitest unit tests (config defaults, safety guard)
+npm test        # vitest unit tests (config, safety guard, planner, glob, JSON extract, rollback)
 npm run build   # tsc
 ```
 
+CI (`.github/workflows/ci.yml`) runs `build` + `test` on every push and PR.
+
+## Known limitations
+
+- **Whole-file edits.** The apply step asks the model for the full new file contents, so a large-file rewrite can introduce unrelated changes. The safety guard catches the common case (Markdown code-fence count changes) and rolls back, but a patch/diff-based edit format is the planned, more robust replacement.
+- **Large repos.** `scan` sends file contents up to a fixed character budget; on very large repos only a subset is examined per run.
+- **One PR per run.** The MVP produces at most one PR per `run`; `max_prs_per_run` is reserved for a future multi-PR loop.
+
 ## License
 
-MIT. Generated changes are AI-assisted; always review before merging.
+MIT (see `LICENSE`). Generated changes are AI-assisted; always review before merging.

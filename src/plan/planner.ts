@@ -2,11 +2,15 @@ import type { Config } from "../config/schema";
 import type { Candidate, ChangePlan } from "../types";
 import { filterSafeCandidates, selectWithinFileBudget } from "../safety/guard";
 
-/** Map a rule to a conventional-commit type + subject. */
+/** Map a rule to a conventional-commit type + subject. When more than one
+ *  rule is bundled, use a generic message so it doesn't misdescribe the diff. */
 function commitInfoFor(rules: Set<string>): {
   type: string;
   subject: string;
 } {
+  if (rules.size > 1) {
+    return { type: "chore", subject: "various maintenance changes" };
+  }
   if (rules.has("unused_import"))
     return { type: "chore", subject: "remove unused imports" };
   if (rules.has("lint_fix"))
