@@ -36,10 +36,11 @@ This produces `dist/`. Run the CLI with `node dist/index.js <command>` (or `npm 
 ## Commands
 
 ```bash
-codebase-gardener doctor        # check git / gh / node / API key / repo state
+codebase-gardener doctor        # check git / gh / node / Claude backend / repo state
 codebase-gardener init          # write .github/codebase-gardener.yml template
 codebase-gardener scan          # list candidates (no branches/PRs)
 codebase-gardener run           # scan -> plan -> apply a small branch
+codebase-gardener batch         # run the pipeline across many repos (registry)
 ```
 
 ### scan
@@ -64,6 +65,27 @@ Options: `--repo <path>`, `--dry-run`, `--create-pr`, `--rules <a,b>`, `--max-fi
 A single `run` can produce several PRs — one coherent PR per rule (so commit messages stay accurate) — up to `max_prs_per_run` (default 1). On a same-day re-run branch names auto-suffix (`-2`, `-3`, …) so they never collide. A formatter (if the repo has one) runs before commit and its output is included.
 
 **Safety:** `run` requires a clean working tree, only acts on low-risk candidates in the configured rule allow-list, enforces file/line/PR limits, honors excluded paths, and defaults to at most one PR per run. If produced edits exceed a limit, the change is rolled back and aborted. Business logic, auth, billing, DB migrations, public API, and large refactors are out of scope by design.
+
+### batch (Phase 2 — multiple repos)
+
+Register repos in a YAML file and run the pipeline across all of them (e.g. from a local cron):
+
+```bash
+node dist/index.js batch --registry codebase-gardener.repos.yml --dry-run
+node dist/index.js batch --registry codebase-gardener.repos.yml --create-pr
+```
+
+```yaml
+# codebase-gardener.repos.yml  (paths resolve relative to this file)
+repos:
+  - path: ../my-app
+  - path: ../another-service
+    rules: [typo, unused_import]   # per-repo overrides win over batch defaults
+    create_pr: true
+    max_prs: 2
+```
+
+CLI flags (`--dry-run`, `--create-pr`, `--rules`, `--max-files`, `--max-changed-lines`, `--max-prs`) are the defaults; each repo entry may override them. See `codebase-gardener.repos.yml.example`.
 
 ## Configuration
 
@@ -93,7 +115,8 @@ Project-specific rule docs (`CLAUDE.md`, `AGENTS.md`, `docs/coding-guidelines.md
 | Layer | File |
 |---|---|
 | CLI | `src/cli.ts`, `src/commands/*` |
-| Config loader | `src/config/*` |
+| Config loader | `src/config/loader.ts`, `src/config/schema.ts` |
+| Batch registry | `src/config/registry.ts`, `src/commands/batch.ts` |
 | Repo inspector | `src/repo/inspector.ts` |
 | Rule/context loader | `src/repo/rulesContext.ts` |
 | Candidate scanner | `src/scan/scanner.ts` |
