@@ -44,20 +44,59 @@ export function plan(
   config: Config,
   now: Date = new Date(),
 ): ChangePlan | null {
-  const safe = filterSafeCandidates(candidates, config);
-  if (safe.length === 0) return null;
+  return planAll(candidates, config, now)[0] ?? null;
+}
 
-  const selected = selectWithinFileBudget(safe, config);
-  if (selected.length === 0) return null;
-
+/** Build a ChangePlan from an already-selected candidate set. */
+function buildPlan(
+  selected: Candidate[],
+  config: Config,
+  now: Date,
+): ChangePlan {
   const rules = new Set(selected.map((c) => c.rule));
   const { type, subject } = commitInfoFor(rules);
   const slug = subject.replace(/\s+/g, "-").toLowerCase();
-
   return {
     candidates: selected,
     branch: `${config.pr.branch_prefix}${slug}-${dateStamp(now)}`,
     commitMessage: `${type}: ${subject}`,
     title: `${type}: ${subject}`,
   };
+}
+
+/**
+ * Split safe candidates into one or more bounded ChangePlans — one coherent
+ * PR per rule (so commit messages stay accurate), each within the per-PR file
+ * budget — capped at `limits.max_prs_per_run`.
+ */
+export function planAll(
+  candidates: Candidate[],
+  config: Config,
+  now: Date = new Date(),
+): ChangePlan[] {
+  const safe = filterSafeCandidates(candidates, config);
+  if (safe.length === 0) return [];
+
+  // Group by rule, preserving first-seen order.
+  const byRule = new Map<string, Candidate[]>();
+  for (const c of safe) {
+    const group = byRule.get(c.rule);
+    if (group) group.push(c);
+    else byRule.set(c.rule, [c]);
+  }
+
+  const maxPrs = config.limits.max_prs_per_run;
+  const plans: ChangePlan[] = [];
+  for (const group of byRule.values()) {
+    let remaining = group;
+    while (remaining.length > 0 && plans.length < maxPrs) {
+      const selected = selectWithinFileBudget(remaining, config);
+      if (selected.length === 0) break;
+      const chosen = new Set(selected.map((c) => c.file));
+      remaining = remaining.filter((c) => !chosen.has(c.file));
+      plans.push(buildPlan(selected, config, now));
+    }
+    if (plans.length >= maxPrs) break;
+  }
+  return plans;
 }

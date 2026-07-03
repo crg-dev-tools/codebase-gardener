@@ -5,7 +5,7 @@ import { loadConfig } from "../config/loader";
 import { ShellGitClient } from "../git/client";
 import { GhCliClient } from "../github/client";
 import { logger } from "../logger";
-import { plan as buildPlan } from "../plan/planner";
+import { planAll } from "../plan/planner";
 import { buildPrBody } from "../pr/body";
 import { preflight } from "../preflight";
 import { inspectRepo } from "../repo/inspector";
@@ -20,6 +20,7 @@ export interface RunOptions {
   rules?: string;
   maxFiles?: number;
   maxChangedLines?: number;
+  maxPrs?: number;
 }
 
 /** The full pipeline: scan -> plan -> apply -> (optional) PR. */
@@ -50,53 +51,71 @@ export async function runRun(opts: RunOptions): Promise<number> {
   const context = await inspectRepo(root, git, config);
 
   const candidates = await scan(context, config, adapter);
-  const changePlan = buildPlan(candidates, config);
-  if (!changePlan) {
+  const plans = planAll(candidates, config);
+  if (plans.length === 0) {
     logger.info("No safe maintenance changes to make.");
     return 0;
   }
+  logger.info(
+    `Planned ${plans.length} change set(s) (limit ${config.limits.max_prs_per_run}).`,
+  );
 
-  logger.info(`Plan: ${changePlan.title}`);
-  logger.info(`Branch: ${changePlan.branch}`);
-  for (const c of changePlan.candidates) {
-    logger.info(`  - [${c.rule}] ${c.file}: ${c.reason}`);
-  }
+  const dryEdits: Array<{ plan: unknown; edits: unknown }> = [];
+  let exitCode = 0;
 
-  const result = await apply(context, changePlan, config, git, adapter, {
-    dryRun: opts.dryRun,
-    baseBranch,
-  });
-
-  if (opts.dryRun) {
-    logger.info("\n[dry-run] proposed edits (not written):");
-    for (const e of result.edits) {
-      logger.info(`  - ${e.file}: ${e.summary}`);
+  for (const [i, changePlan] of plans.entries()) {
+    logger.info(`\n[${i + 1}/${plans.length}] ${changePlan.title}`);
+    for (const c of changePlan.candidates) {
+      logger.info(`  - [${c.rule}] ${c.file}: ${c.reason}`);
     }
-    if (opts.json) {
-      logger.out(JSON.stringify({ plan: changePlan, edits: result.edits }, null, 2));
+
+    // Each plan must branch from the base branch, not the previous plan's.
+    if (!opts.dryRun && baseBranch) {
+      await git.checkout(baseBranch);
     }
-    return 0;
-  }
 
-  if (result.aborted) {
-    logger.error(`aborted by safety check: ${result.aborted}`);
-    return 1;
-  }
-  if (!result.committed) {
-    logger.info("Model produced no applicable edits; nothing committed.");
-    return 0;
-  }
+    const result = await apply(context, changePlan, config, git, adapter, {
+      dryRun: opts.dryRun,
+      baseBranch,
+    });
 
-  logger.info(`Committed ${result.edits.length} file(s) on ${result.branch}.`);
+    if (opts.dryRun) {
+      logger.info("  [dry-run] proposed edits (not written):");
+      for (const e of result.edits) logger.info(`    - ${e.file}: ${e.summary}`);
+      dryEdits.push({ plan: changePlan, edits: result.edits });
+      continue;
+    }
 
-  if (!opts.createPr) {
+    if (result.aborted) {
+      logger.error(`  aborted by safety check: ${result.aborted}`);
+      exitCode = 1;
+      continue;
+    }
+    if (!result.committed) {
+      logger.info("  Model produced no applicable edits; nothing committed.");
+      continue;
+    }
     logger.info(
-      "PR not created (pass --create-pr to push and open a pull request).",
+      `  Committed ${result.edits.length} file(s) on ${result.branch}.`,
     );
-    return 0;
+
+    if (!opts.createPr) {
+      logger.info("  PR not created (pass --create-pr).");
+      continue;
+    }
+    const code = await openPullRequest(root, git, result.branch, changePlan, result, config);
+    if (code !== 0) exitCode = code;
   }
 
-  return openPullRequest(root, git, result.branch, changePlan, result, config);
+  // Leave the caller back on the base branch for a tidy working state.
+  if (!opts.dryRun && baseBranch) {
+    await git.checkout(baseBranch);
+  }
+
+  if (opts.dryRun && opts.json) {
+    logger.out(JSON.stringify({ plans: dryEdits }, null, 2));
+  }
+  return exitCode;
 }
 
 async function openPullRequest(

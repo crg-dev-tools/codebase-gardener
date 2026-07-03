@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defaultConfig } from "../src/config/schema";
-import { plan } from "../src/plan/planner";
+import { plan, planAll } from "../src/plan/planner";
 import type { Candidate } from "../src/types";
 
 function candidate(over: Partial<Candidate>): Candidate {
@@ -41,7 +41,7 @@ describe("planner", () => {
     expect(result!.commitMessage).toBe("docs: fix typos");
   });
 
-  it("uses a generic commit message when bundling multiple rule types", () => {
+  it("plan() returns the first single-rule plan (rules are not bundled)", () => {
     const config = defaultConfig();
     const result = plan(
       [
@@ -51,7 +51,55 @@ describe("planner", () => {
       config,
       FIXED,
     );
-    expect(result!.commitMessage).toBe("chore: various maintenance changes");
+    // First-seen rule wins; message is accurate for that single rule.
+    expect(result!.commitMessage).toBe("chore: remove unused imports");
+  });
+
+  it("planAll makes one coherent plan per rule with accurate messages", () => {
+    const config = defaultConfig();
+    config.limits.max_prs_per_run = 5;
+    const plans = planAll(
+      [
+        candidate({ file: "a.ts", rule: "unused_import" }),
+        candidate({ file: "b.ts", rule: "unused_import" }),
+        candidate({ file: "c.md", rule: "typo" }),
+      ],
+      config,
+      FIXED,
+    );
+    expect(plans).toHaveLength(2);
+    const byMsg = plans.map((p) => p.commitMessage).sort();
+    expect(byMsg).toEqual(["chore: remove unused imports", "docs: fix typos"]);
+  });
+
+  it("planAll caps the number of plans at max_prs_per_run", () => {
+    const config = defaultConfig();
+    config.limits.max_prs_per_run = 1;
+    const plans = planAll(
+      [
+        candidate({ file: "a.ts", rule: "unused_import" }),
+        candidate({ file: "c.md", rule: "typo" }),
+      ],
+      config,
+      FIXED,
+    );
+    expect(plans).toHaveLength(1);
+  });
+
+  it("planAll splits one rule across plans when over the file budget", () => {
+    const config = defaultConfig();
+    config.limits.max_files_per_pr = 1;
+    config.limits.max_prs_per_run = 5;
+    const plans = planAll(
+      [
+        candidate({ file: "a.ts", rule: "unused_import" }),
+        candidate({ file: "b.ts", rule: "unused_import" }),
+      ],
+      config,
+      FIXED,
+    );
+    expect(plans).toHaveLength(2);
+    expect(plans.every((p) => p.candidates.length === 1)).toBe(true);
   });
 
   it("respects the per-PR file budget", () => {

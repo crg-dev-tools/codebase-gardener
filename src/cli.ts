@@ -68,6 +68,7 @@ export async function main(argv: string[]): Promise<number> {
     .option("--rules <list>", "comma-separated rule allow-list override")
     .option("--max-files <n>", "max files per PR", parseIntOpt)
     .option("--max-changed-lines <n>", "max changed lines per PR", parseIntOpt)
+    .option("--max-prs <n>", "max PRs per run", parseIntOpt)
     .option("--json", "emit JSON for dry-run output", false)
     .action(async (opts) => {
       exitCode = await runRun({
@@ -78,6 +79,7 @@ export async function main(argv: string[]): Promise<number> {
         rules: opts.rules,
         maxFiles: opts.maxFiles,
         maxChangedLines: opts.maxChangedLines,
+        maxPrs: opts.maxPrs,
       });
     });
 
